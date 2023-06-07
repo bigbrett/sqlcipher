@@ -1,3 +1,13 @@
+## WolfSSL Instructions
+To build with wolfSSL, clone this repo and build as usual but add the `-with-crypto-lib=wolfssl` option to `configure`. For example, to build and run the tests after cloning (following the instructions in the original README below), you should run the following commands:
+
+```
+# ./configure --enable-tempstore=yes --with-crypto-lib=wolfssl --enable-fts5 CFLAGS=-DSQLITE_HAS_CODEC -DSQLCIPHER_TEST LDFLAGS=-lcrypto
+$ make testfixture
+$ ./testfixture test/sqlcipher.test
+```
+
+# Original Readme:
 ## SQLCipher
 
 SQLCipher is a standalone fork of the [SQLite](https://www.sqlite.org/) database library that adds 256 bit AES encryption of database files and other security features like:
