@@ -52,12 +52,12 @@ int sqlcipher_wolf_setup(sqlcipher_provider *p);
 #include <wolfssl/wolfcrypt/fips_test.h>
 static void wcFipsCb(int ok, int err, const char* hash)
 {
-    CODEC_TRACE("wolfCrypt Fips error callback, ok = %d, err = %d\n", ok, err);
-    CODEC_TRACE("message = %s\n", wc_GetErrorString(err));
-    CODEC_TRACE("hash = %s\n", hash);
+    sqlcipher_log(SQLCIPHER_LOG_TRACE, "wolfCrypt Fips error callback, ok = %d, err = %d\n", ok, err);
+    sqlcipher_log(SQLCIPHER_LOG_TRACE, "message = %s\n", wc_GetErrorString(err));
+    sqlcipher_log(SQLCIPHER_LOG_TRACE, "hash = %s\n", hash);
     if (err == IN_CORE_FIPS_E) {
-        CODEC_TRACE("In core integrity hash check failure, copy above hash\n");
-        CODEC_TRACE("into verifyCore[] in fips_test.c and rebuild\n");
+        sqlcipher_log(SQLCIPHER_LOG_TRACE, "In core integrity hash check failure, copy above hash\n");
+        sqlcipher_log(SQLCIPHER_LOG_TRACE, "into verifyCore[] in fips_test.c and rebuild\n");
     }
 }
 #endif
