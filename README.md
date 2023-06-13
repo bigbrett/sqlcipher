@@ -7,6 +7,8 @@ $ make testfixture
 $ ./testfixture test/sqlcipher.test
 ```
 
+Note that if using a FIPS build, the sqlcipher tests will all fail as they use a password/key shorter than the minimum FIPS mandated length (14 bytes). There are some tests that are easy to change to accomodate that (`sqlcipher-backup.test`, for example). For these you can run `sed -i 's/testkey/testkey012345678/g'`. Other tests will take too long to fix as they use random keys ("foo", "0123", etc) and others like `sqlcipher-compatibility.test` operate on databases already encrypted with short keys.
+
 # Original Readme:
 ## SQLCipher
 
