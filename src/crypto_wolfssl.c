@@ -52,12 +52,12 @@ int sqlcipher_wolf_setup(sqlcipher_provider *p);
 #include <wolfssl/wolfcrypt/fips_test.h>
 static void wcFipsCb(int ok, int err, const char* hash)
 {
-    sqlcipher_log(SQLCIPHER_LOG_TRACE, "wolfCrypt Fips error callback, ok = %d, err = %d\n", ok, err);
-    sqlcipher_log(SQLCIPHER_LOG_TRACE, "message = %s\n", wc_GetErrorString(err));
-    sqlcipher_log(SQLCIPHER_LOG_TRACE, "hash = %s\n", hash);
+    sqlcipher_log(SQLCIPHER_LOG_ERROR, "wolfCrypt Fips error callback, ok = %d, err = %d\n", ok, err);
+    sqlcipher_log(SQLCIPHER_LOG_ERROR, "message = %s\n", wc_GetErrorString(err));
+    sqlcipher_log(SQLCIPHER_LOG_ERROR, "hash = %s\n", hash);
     if (err == IN_CORE_FIPS_E) {
-        sqlcipher_log(SQLCIPHER_LOG_TRACE, "In core integrity hash check failure, copy above hash\n");
-        sqlcipher_log(SQLCIPHER_LOG_TRACE, "into verifyCore[] in fips_test.c and rebuild\n");
+        sqlcipher_log(SQLCIPHER_LOG_ERROR, "In core integrity hash check failure, copy above hash\n");
+        sqlcipher_log(SQLCIPHER_LOG_ERROR, "into verifyCore[] in fips_test.c and rebuild\n");
     }
 }
 #endif
@@ -190,11 +190,13 @@ static int sqlcipher_wolf_get_hmac_sz(void *ctx, int algorithm) {
 }
 
 static int sqlcipher_wolf_ctx_init(void **ctx) {
+
   if (wolfCrypt_Init() != 0) {
       return SQLITE_ERROR;
   }
 #ifdef HAVE_FIPS
   wolfCrypt_SetCb_fips(wcFipsCb);
+  wc_SetSeed_Cb(wc_GenerateSeed);
 #endif
   return SQLITE_OK;
 }
