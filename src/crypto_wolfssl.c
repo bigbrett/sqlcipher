@@ -196,7 +196,9 @@ static int sqlcipher_wolf_ctx_init(void **ctx) {
   }
 #ifdef HAVE_FIPS
   wolfCrypt_SetCb_fips(wcFipsCb);
+#if (FIPS_VERSION_GE(5,3))
   wc_SetSeed_Cb(wc_GenerateSeed);
+#endif
 #endif
   return SQLITE_OK;
 }
