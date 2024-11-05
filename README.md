@@ -1,3 +1,33 @@
+## WolfSSL Instructions
+
+To build with wolfSSL, clone this repo and build as usual, but regenerate the configure file and then add the `-with-crypto-lib=wolfssl` option to `configure`. For example, to build and run the tests after cloning (following the instructions in the original README below), you should run the following commands:
+
+```sh
+$ autoreconf --install --force # Necessary only the first time, since we modify configure.ac to add an option for wolfSSL
+$ ./configure --enable-tempstore=yes --with-crypto-lib=wolfssl --enable-fts5 CFLAGS="-DSQLITE_HAS_CODEC -DSQLCIPHER_TEST" LDFLAGS="-lwolfssl"
+$ make
+$ make testfixture
+$ ./testfixture test/sqlcipher.test
+```
+
+Note that if using a FIPS build, the sqlcipher tests will all fail as they use a password/key shorter than the minimum FIPS mandated length (14 bytes). There are some tests that are easy to change to accomodate that (`sqlcipher-backup.test`, for example). For these you can run `sed -i 's/testkey/testkey012345678/g'`. Other tests will take too long to fix as they use random keys ("foo", "0123", etc) and others like `sqlcipher-compatibility.test` operate on databases already encrypted with short keys.
+
+### Troubleshooting
+
+Note that the SQLite test suite requires the tcl development headers to be installed on the system. If they are not installed, `make testfixture` will fail with errors like:
+
+``
+sqlcipher/src/test1.c:32:12: fatal error: tcl.h: No such file or directory
+   32 | #  include "tcl.h"
+      |            ^~~~~~~
+compilation terminated.
+``
+
+To fix this on Ubuntu, [install the tcl-dev package](https://askubuntu.com/a/568760) (`apt install tcl-dev`)
+
+
+# Original Readme:
+
 ## SQLCipher
 
 SQLCipher is a standalone fork of the [SQLite](https://www.sqlite.org/) database library that adds 256 bit AES encryption of database files and other security features like:

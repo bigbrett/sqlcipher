@@ -76,6 +76,7 @@ void sqlite3pager_reset(Pager *pPager);
 #if !defined (SQLCIPHER_CRYPTO_CC) \
    && !defined (SQLCIPHER_CRYPTO_LIBTOMCRYPT) \
    && !defined (SQLCIPHER_CRYPTO_NSS) \
+   && !defined (SQLCIPHER_CRYPTO_WOLFSSL) \
    && !defined (SQLCIPHER_CRYPTO_OPENSSL)
 #define SQLCIPHER_CRYPTO_OPENSSL
 #endif
@@ -534,6 +535,9 @@ static void sqlcipher_activate() {
 #elif defined (SQLCIPHER_CRYPTO_NSS)
     extern int sqlcipher_nss_setup(sqlcipher_provider *p);
     sqlcipher_nss_setup(p);
+#elif defined (SQLCIPHER_CRYPTO_WOLFSSL)
+    extern int sqlcipher_wolf_setup(sqlcipher_provider *p);
+    sqlcipher_wolf_setup(p);
 #elif defined (SQLCIPHER_CRYPTO_OPENSSL)
     extern int sqlcipher_openssl_setup(sqlcipher_provider *p);
     sqlcipher_openssl_setup(p);

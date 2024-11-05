@@ -434,6 +434,7 @@ set flist {
    crypto_nss.c
    crypto_openssl.c
    crypto_cc.c
+   crypto_wolfssl.c
 
    walker.c
    resolve.c
