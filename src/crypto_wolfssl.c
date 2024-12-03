@@ -50,14 +50,13 @@ int sqlcipher_wolf_setup(sqlcipher_provider *p);
 
 #ifdef HAVE_FIPS
 #include <wolfssl/wolfcrypt/fips_test.h>
-static void wcFipsCb(int ok, int err, const char* hash)
-{
-    sqlcipher_log(SQLCIPHER_LOG_ERROR, "wolfCrypt Fips error callback, ok = %d, err = %d\n", ok, err);
-    sqlcipher_log(SQLCIPHER_LOG_ERROR, "message = %s\n", wc_GetErrorString(err));
-    sqlcipher_log(SQLCIPHER_LOG_ERROR, "hash = %s\n", hash);
+static void wcFipsCb(int ok, int err, const char* hash) {
+    sqlcipher_log(SQLCIPHER_LOG_ERROR, SQLCIPHER_LOG_PROVIDER, "wolfCrypt Fips error callback, ok = %d, err = %d\n", ok, err);
+    sqlcipher_log(SQLCIPHER_LOG_ERROR, SQLCIPHER_LOG_PROVIDER, "message = %s\n", wc_GetErrorString(err));
+    sqlcipher_log(SQLCIPHER_LOG_ERROR, SQLCIPHER_LOG_PROVIDER, "hash = %s\n", hash);
     if (err == IN_CORE_FIPS_E) {
-        sqlcipher_log(SQLCIPHER_LOG_ERROR, "In core integrity hash check failure, copy above hash\n");
-        sqlcipher_log(SQLCIPHER_LOG_ERROR, "into verifyCore[] in fips_test.c and rebuild\n");
+        sqlcipher_log(SQLCIPHER_LOG_ERROR, SQLCIPHER_LOG_PROVIDER, "In core integrity hash check failure, copy above hash\n");
+        sqlcipher_log(SQLCIPHER_LOG_ERROR, SQLCIPHER_LOG_PROVIDER, "into verifyCore[] in fips_test.c and rebuild\n");
     }
 }
 #endif
@@ -77,12 +76,21 @@ static int sqlcipher_wolf_random(void *ctx, void *buffer, int length) {
   int ret = -1;
   if (!gRngInit) {
     ret = wc_InitRng(&gRng);
-    if (ret == 0) {
-      gRngInit = 1;
+    if (ret != 0) {
+      sqlcipher_log(SQLCIPHER_LOG_ERROR, SQLCIPHER_LOG_PROVIDER,
+                    "wolfCrypt RNG init failed with code %d: %s\n",
+                    ret, wc_GetErrorString(ret));
+      return SQLITE_ERROR;
     }
+    gRngInit = 1;
   }
   if (gRngInit) {
-      ret = wc_RNG_GenerateBlock(&gRng, buffer, length);
+    ret = wc_RNG_GenerateBlock(&gRng, buffer, length);
+    if (ret != 0) {
+      sqlcipher_log(SQLCIPHER_LOG_ERROR, SQLCIPHER_LOG_PROVIDER,
+                    "wolfCrypt RNG generation failed with code %d: %s\n",
+                    ret, wc_GetErrorString(ret));
+    }
   }
   return (ret == 0) ? SQLITE_OK : SQLITE_ERROR;
 }
@@ -98,9 +106,16 @@ static const char* sqlcipher_wolf_get_provider_version(void *ctx) {
 static int sqlcipher_wolf_hmac(void *ctx, int algorithm, unsigned char *hmac_key,
     int key_sz, unsigned char *in, int in_sz, unsigned char *in2, int in2_sz, unsigned char *out) {
   int ret;
+
   Hmac hmac_context;
   if(in == NULL) return SQLITE_ERROR;
-  if (wc_HmacInit(&hmac_context, NULL, INVALID_DEVID) != 0) return SQLITE_ERROR;
+
+  if (wc_HmacInit(&hmac_context, NULL, INVALID_DEVID) != 0) {
+    sqlcipher_log(SQLCIPHER_LOG_ERROR, SQLCIPHER_LOG_PROVIDER,
+                  "wolfCrypt HMAC init failed\n");
+    return SQLITE_ERROR;
+  }
+
   switch(algorithm) {
     case SQLCIPHER_HMAC_SHA1:
       ret = wc_HmacSetKey(&hmac_context, WC_SHA, hmac_key, key_sz);
@@ -114,12 +129,39 @@ static int sqlcipher_wolf_hmac(void *ctx, int algorithm, unsigned char *hmac_key
     default:
       ret = SQLITE_ERROR;
   }
-  if (ret == 0)
-    ret = wc_HmacUpdate(&hmac_context, in, in_sz);
-  if (ret == 0 && in2 != NULL)
-    ret = wc_HmacUpdate(&hmac_context, in2, in2_sz);
-  if (ret == 0)
-    ret = wc_HmacFinal(&hmac_context, out);
+
+  if (ret != 0) {
+    sqlcipher_log(SQLCIPHER_LOG_ERROR, SQLCIPHER_LOG_PROVIDER,
+                  "wolfCrypt HMAC set key failed with code %d: %s\n",
+                  ret, wc_GetErrorString(ret));
+    wc_HmacFree(&hmac_context);
+    return SQLITE_ERROR;
+  }
+
+  if ((ret = wc_HmacUpdate(&hmac_context, in, in_sz)) != 0) {
+    sqlcipher_log(SQLCIPHER_LOG_ERROR, SQLCIPHER_LOG_PROVIDER,
+                  "wolfCrypt HMAC update failed with code %d: %s\n",
+                  ret, wc_GetErrorString(ret));
+    wc_HmacFree(&hmac_context);
+    return SQLITE_ERROR;
+  }
+
+  if (in2 != NULL) {
+    if ((ret = wc_HmacUpdate(&hmac_context, in2, in2_sz)) != 0) {
+      sqlcipher_log(SQLCIPHER_LOG_ERROR, SQLCIPHER_LOG_PROVIDER,
+                    "wolfCrypt HMAC update (in2) failed with code %d: %s\n",
+                    ret, wc_GetErrorString(ret));
+      wc_HmacFree(&hmac_context);
+      return SQLITE_ERROR;
+    }
+  }
+
+  if ((ret = wc_HmacFinal(&hmac_context, out)) != 0) {
+    sqlcipher_log(SQLCIPHER_LOG_ERROR, SQLCIPHER_LOG_PROVIDER,
+                  "wolfCrypt HMAC final failed with code %d: %s\n",
+                  ret, wc_GetErrorString(ret));
+  }
+
   wc_HmacFree(&hmac_context);
   return (ret == 0) ? SQLITE_OK : SQLITE_ERROR;
 }
@@ -147,15 +189,37 @@ static int sqlcipher_wolf_cipher(void *ctx, int mode, unsigned char *key,
     int key_sz, unsigned char *iv, unsigned char *in, int in_sz, unsigned char *out) {
   int ret;
   Aes aes;
-  if (wc_AesInit(&aes, NULL, INVALID_DEVID) != 0) return SQLITE_ERROR;
+
+  if (wc_AesInit(&aes, NULL, INVALID_DEVID) != 0) {
+    sqlcipher_log(SQLCIPHER_LOG_ERROR, SQLCIPHER_LOG_PROVIDER,
+                  "wolfCrypt AES init failed\n");
+    return SQLITE_ERROR;
+  }
+
   ret = wc_AesSetKey(&aes, key, key_sz, iv,
     mode == CIPHER_ENCRYPT ? AES_ENCRYPTION : AES_DECRYPTION);
-  if (ret == 0) {
-      if (mode == CIPHER_ENCRYPT)
-        ret = wc_AesCbcEncrypt(&aes, out, in, in_sz);
-      else
-        ret = wc_AesCbcDecrypt(&aes, out, in, in_sz);
+
+  if (ret != 0) {
+    sqlcipher_log(SQLCIPHER_LOG_ERROR, SQLCIPHER_LOG_PROVIDER,
+                  "wolfCrypt AES set key failed with code %d: %s\n",
+                  ret, wc_GetErrorString(ret));
+    wc_AesFree(&aes);
+    return SQLITE_ERROR;
   }
+
+  if (mode == CIPHER_ENCRYPT) {
+    ret = wc_AesCbcEncrypt(&aes, out, in, in_sz);
+  } else {
+    ret = wc_AesCbcDecrypt(&aes, out, in, in_sz);
+  }
+
+  if (ret != 0) {
+    sqlcipher_log(SQLCIPHER_LOG_ERROR, SQLCIPHER_LOG_PROVIDER,
+                  "wolfCrypt AES %s failed with code %d: %s\n",
+                  mode == CIPHER_ENCRYPT ? "encryption" : "decryption",
+                  ret, wc_GetErrorString(ret));
+  }
+
   wc_AesFree(&aes);
   return (ret == 0) ? SQLITE_OK : SQLITE_ERROR;
 }
@@ -190,16 +254,17 @@ static int sqlcipher_wolf_get_hmac_sz(void *ctx, int algorithm) {
 }
 
 static int sqlcipher_wolf_ctx_init(void **ctx) {
-
   if (wolfCrypt_Init() != 0) {
       return SQLITE_ERROR;
   }
 #ifdef HAVE_FIPS
   wolfCrypt_SetCb_fips(wcFipsCb);
-#if (FIPS_VERSION_GE(5,3))
+#if (FIPS_VERSION_GE(5,2))
   wc_SetSeed_Cb(wc_GenerateSeed);
+  PRIVATE_KEY_UNLOCK();
 #endif
 #endif
+  sqlcipher_log(SQLCIPHER_LOG_INFO, SQLCIPHER_LOG_PROVIDER, "wolfSSL provider initialized\n");
   return SQLITE_OK;
 }
 
@@ -208,6 +273,9 @@ static int sqlcipher_wolf_ctx_free(void **ctx) {
       wc_FreeRng(&gRng);
       gRngInit = 0;
   }
+#if (defined(HAVE_FIPS) && FIPS_VERSION_GE(5,2))
+  PRIVATE_KEY_LOCK();
+#endif
 
   wolfCrypt_Cleanup();
   return SQLITE_OK;
